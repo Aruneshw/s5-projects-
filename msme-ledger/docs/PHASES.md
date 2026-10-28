@@ -37,7 +37,7 @@ Files: `src/server/auth/{options,session,password}.ts`, `src/server/authorizatio
 `src/server/rate-limit.ts`, `src/proxy.ts`, `src/app/api/auth/**`, `src/app/api/me`, `src/app/api/team/**`,
 `src/server/services/team.ts`, `src/components/auth/{me,can}.tsx`, `src/components/layout/{nav.ts,app-shell.tsx}`,
 `src/app/(auth)/**`, `src/app/(app)/team`, `scripts/reset-password.ts`, `scripts/create-owner.ts`.
-Check: sign in as `me`, `cashier`; cashier's menu has no Reports; `/api/reports/sales` as cashier → 403.
+Check: sign in as `zaids5`, `cashier`; cashier's menu has no Reports; `/api/reports/sales` as cashier → 403.
 Tests: `security-routes.test.ts` (18 tests), RBAC unit tests, E2E "cashier cannot reach…".
 
 ## Phase 4 — store & item masters, purchase & sales billing, variable-weight entry

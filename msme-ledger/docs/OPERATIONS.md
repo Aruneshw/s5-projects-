@@ -24,9 +24,9 @@
 5. Create the business and its first owner (no demo data):
 
    ```powershell
-   $env:DATABASE_URL = "<production connection string>"; $env:NEW_OWNER_PASSWORD = "<strong password>"
-   npm run setup:owner -- "Your Business Name" me "Me"
-   Remove-Item Env:DATABASE_URL, Env:NEW_OWNER_PASSWORD
+   $env:DATABASE_URL = "<production connection string>"; $env:NEW_OWNER_PASSWORD = "<your password>"; $env:ALLOW_WEAK_PASSWORD = "1"  # only if the password is shorter than 8 characters
+   npm run setup:owner -- "Your Business Name" zaids5 "Zaid"
+   Remove-Item Env:DATABASE_URL, Env:NEW_OWNER_PASSWORD, Env:ALLOW_WEAK_PASSWORD
    ```
    Then sign in and add Dad (owner) and any cashier from **Team**.
 6. `vercel.json` schedules `/api/jobs/daily` every day at 02:00 IST; Vercel sends `Authorization: Bearer $CRON_SECRET`.

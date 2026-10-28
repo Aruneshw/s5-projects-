@@ -32,7 +32,7 @@ async function main() {
   const [ownerPw, dadPw, cashierPw] = (await Promise.all([need("SEED_OWNER_PASSWORD"), need("SEED_DAD_PASSWORD"), need("SEED_CASHIER_PASSWORD")].map(hashPassword))) as [string, string, string];
 
   // ----------------------------- Users & organisations -----------------------------
-  const me = await prisma.user.create({ data: { username: "me", displayName: "Me", passwordHash: ownerPw, profile: { create: { phone: "9000000001" } } } });
+  const me = await prisma.user.create({ data: { username: "zaids5", displayName: "Zaid", passwordHash: ownerPw, profile: { create: { phone: "9000000001" } } } });
   const dad = await prisma.user.create({ data: { username: "dad", displayName: "Dad", passwordHash: dadPw, profile: { create: { phone: "9000000002" } } } });
   const cashier = await prisma.user.create({ data: { username: "cashier", displayName: "Market Cashier", passwordHash: cashierPw } });
   const investorUser = await prisma.user.create({ data: { username: "investor", displayName: "Demo Investor", passwordHash: ownerPw } });

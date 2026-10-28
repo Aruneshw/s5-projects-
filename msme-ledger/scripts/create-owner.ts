@@ -2,6 +2,7 @@
 // default payment modes. Add Dad and staff afterwards from the Team screen.
 //   PowerShell:  $env:NEW_OWNER_PASSWORD="…"; npm run setup:owner -- "Business name" me "Me"
 //   bash:        NEW_OWNER_PASSWORD=… npm run setup:owner -- "Business name" me "Me"
+// Set ALLOW_WEAK_PASSWORD=1 to skip the strength rules (e.g. a short password).
 import "dotenv/config";
 import { prisma } from "../src/server/db";
 import { hashPassword } from "../src/server/auth/password";
@@ -13,7 +14,9 @@ async function main() {
   const [orgName, usernameRaw, displayName] = process.argv.slice(2);
   if (!orgName || !usernameRaw || !displayName) throw new Error('Usage: npm run setup:owner -- "Business name" <username> "<Display name>"');
   const username = usernameRaw.trim().toLowerCase();
-  const password = PasswordSchema.parse(process.env.NEW_OWNER_PASSWORD ?? "");
+  const rawPassword = process.env.NEW_OWNER_PASSWORD ?? "";
+  if (!rawPassword) throw new Error("Set NEW_OWNER_PASSWORD");
+  const password = process.env.ALLOW_WEAK_PASSWORD === "1" ? rawPassword : PasswordSchema.parse(rawPassword);
   if (await prisma.user.findUnique({ where: { username } })) throw new Error(`Username ${username} already exists`);
   const user = await prisma.user.create({ data: { username, displayName, passwordHash: await hashPassword(password) } });
   const org = await prisma.organization.create({ data: { name: orgName, settings: OrgSettingsSchema.parse({}) as object } });

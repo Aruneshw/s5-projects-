@@ -2,7 +2,7 @@
 import "dotenv/config";
 import { expect, test, type Page } from "@playwright/test";
 
-const OWNER = { u: "me", p: process.env.SEED_OWNER_PASSWORD ?? "" };
+const OWNER = { u: "zaids5", p: process.env.SEED_OWNER_PASSWORD ?? "" };
 const CASHIER = { u: "cashier", p: process.env.SEED_CASHIER_PASSWORD ?? "" };
 
 async function login(page: Page, who: { u: string; p: string }) {

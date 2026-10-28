@@ -85,7 +85,7 @@ $env:DATABASE_URL = "postgresql://msme:change-me-123@localhost:5432/msme_ledger_
 npm run dev          # http://localhost:3000  (development, hot reload)
 ```
 
-Sign in as `me` (or `dad`) with `SEED_OWNER_PASSWORD` / `SEED_DAD_PASSWORD`, or `cashier` to see the restricted view.
+Sign in as `zaids5` (or `dad`) with `SEED_OWNER_PASSWORD` / `SEED_DAD_PASSWORD`, or `cashier` to see the restricted view.
 `investor` and `lender` (password `SEED_OWNER_PASSWORD`) show the financier portals.
 
 To use it on your phone on the same Wi-Fi: find your PC's IP with `ipconfig`, then open `http://<ip>:3000`.

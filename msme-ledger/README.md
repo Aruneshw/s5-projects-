@@ -29,7 +29,7 @@ Copy-Item .env.example .env   # then edit .env (database URL, secrets)
 npm ci
 npx prisma migrate deploy
 npm run db:seed
-npm run dev                   # http://localhost:3000  → sign in as "me"
+npm run dev                   # http://localhost:3000  → sign in as "zaids5"
 ```
 
 This app is a record-keeping and workflow tool. It is not a lender and not a substitute for a Chartered Accountant.
