@@ -1,0 +1,936 @@
+// prisma/schema.prisma
+// ---------------------------------------------------------------------------
+// MSME Digital Accounting Ledger — database model.
+//
+// Conventions (read docs/ARCHITECTURE.md for the full story):
+//  * Every primary key is a UUID (except audit_logs, whose BIGSERIAL id doubles as
+//    the monotonic sync cursor).
+//  * Money = Decimal(14,2). Quantities = Decimal(12,3). Never floats.
+//  * Ledger sign convention: LedgerEntry.amount > 0 INCREASES the party balance.
+//      - For a CUSTOMER store the balance is what the customer owes us (receivable).
+//      - For a SUPPLIER store the balance is what we owe the supplier (payable).
+//  * Stock sign convention: InventoryMovement.quantity > 0 = stock IN, < 0 = stock OUT.
+//  * Rules Prisma cannot express (CHECK constraints, partial unique indexes,
+//    immutability and audit triggers) live in hand-written SQL migrations.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------- Enums ---------------------------------------
+
+enum OrgType {
+  MSME
+  FINANCIER
+}
+
+enum Role {
+  MSME_OWNER
+  STAFF_CASHIER
+  INVESTOR
+  LENDER_BANK
+}
+
+enum StoreType {
+  SUPPLIER
+  CUSTOMER
+}
+
+enum UnitType {
+  KG
+  BAG
+  BOX
+}
+
+enum BillType {
+  PURCHASE
+  SALES
+}
+
+enum BillStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum BillSource {
+  MANUAL
+  OFFLINE_SYNC
+  OCR
+}
+
+enum EntryMode {
+  WEIGHED // kg item, individual bag weights recorded
+  COUNT // bag / box item, quantity entered directly
+  COMBINED_LOT // kg item recorded as one combined lot (total kg + bag count)
+}
+
+enum PaymentDirection {
+  RECEIVED // money received from a customer
+  PAID // money paid to a supplier
+}
+
+enum RecordStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum LedgerEntryType {
+  OPENING
+  BILL_CHARGE
+  COOLIE
+  LESS
+  BONUS
+  COMMISSION
+  PAYMENT
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum AdjustmentType {
+  COOLIE_CORRECTION
+  LESS
+  BONUS
+  OPENING_BALANCE_CORRECTION
+  BALANCE_CORRECTION
+}
+
+enum MovementType {
+  PURCHASE
+  SALE
+  CANCEL_REVERSAL
+  ADJUSTMENT
+}
+
+enum ExpenseCategory {
+  TRANSPORT
+  LORRY_HIRE
+  FUEL
+  TOLLS
+  MARKET_FEES
+  MISCELLANEOUS
+}
+
+enum DiscountStatus {
+  LISTED
+  BID_ACCEPTED
+  FUNDED
+  SETTLED
+  DEFAULTED
+  WITHDRAWN
+}
+
+enum BidStatus {
+  OPEN
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum SettlementRouting {
+  TO_BUSINESS
+  TO_FINANCIER
+}
+
+enum RiskFlag {
+  NORMAL
+  HIGH_RISK
+}
+
+enum SyncStatus {
+  APPLIED
+  CONFLICT
+  REJECTED
+  RESOLVED
+}
+
+enum OcrStatus {
+  UPLOADED
+  EXTRACTED
+  FAILED
+  CONFIRMED
+  DISCARDED
+}
+
+enum LoanOfferStatus {
+  INDICATIVE
+  INTEREST_EXPRESSED
+  WITHDRAWN
+  LENDER_DECLINED
+}
+
+// --------------------------- Identity & tenancy -----------------------------
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  username       String   @unique
+  passwordHash   String
+  displayName    String
+  isActive       Boolean  @default(true)
+  sessionVersion Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  profile        Profile?
+  memberships    Membership[]
+  resetTokens    PasswordResetToken[] @relation("ResetTokenUser")
+  createdBills   Bill[]               @relation("BillCreatedBy")
+  editedBills    Bill[]               @relation("BillEditedBy")
+  payments       Payment[]            @relation("PaymentCreatedBy")
+  discountBids   DiscountBid[]
+
+  @@map("users")
+}
+
+model Profile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  phone     String?
+  email     String?
+  language  String   @default("en")
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("profiles")
+}
+
+model Organization {
+  id                 String   @id @default(uuid()) @db.Uuid
+  name               String
+  type               OrgType  @default(MSME)
+  riskFlag           RiskFlag @default(NORMAL)
+  /// Validated by src/lib/validation/settings.ts (OrgSettings).
+  settings           Json     @default("{}")
+  /// MSME consent to share an anonymised credit profile with lenders.
+  shareCreditProfile Boolean  @default(false)
+  /// For FINANCIER orgs that represent a lending partner.
+  lendingPartnerId   String?  @db.Uuid
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(6)
+
+  lendingPartner LendingPartner? @relation(fields: [lendingPartnerId], references: [id])
+  memberships    Membership[]
+  stores         Store[]
+  items          Item[]
+  bills          Bill[]
+  financialYears FinancialYear[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  orgId     String   @db.Uuid
+  role      Role
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@map("memberships")
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  /// SHA-256 of the token; the raw token is only ever shown once.
+  tokenHash   String    @unique
+  expiresAt   DateTime  @db.Timestamptz(6)
+  usedAt      DateTime? @db.Timestamptz(6)
+  createdById String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation("ResetTokenUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// Used for DB-backed rate limiting (works across serverless instances).
+model RateLimitHit {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([key, createdAt])
+  @@map("rate_limit_hits")
+}
+
+// ------------------------------- Masters -----------------------------------
+
+model Store {
+  id             String    @id @default(uuid()) @db.Uuid
+  orgId          String    @db.Uuid
+  type           StoreType
+  shopName       String
+  city           String
+  location       String?
+  ownerName      String?
+  coOwnerName    String?
+  contactName    String?
+  phone          String?
+  address        String?
+  upiId          String?
+  /// Store mark/code. NOT the same thing as BillLine.lineMark.
+  storeMark      String?
+  /// Original opening balance. Write-once (enforced by trigger). Never returned by the API.
+  openingBalance Decimal   @default(0) @db.Decimal(14, 2)
+  isActive       Boolean   @default(true)
+  version        Int       @default(1)
+  createdById    String    @db.Uuid
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
+
+  org         Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  bankDetail  StoreBankDetail?
+  bills       Bill[]
+  payments    Payment[]
+  ledger      LedgerEntry[]
+  adjustments BillAdjustment[]
+
+  @@unique([orgId, type, shopName, city])
+  @@index([orgId, shopName])
+  @@map("stores")
+}
+
+/// Restricted: only MSME_OWNER may read or write.
+model StoreBankDetail {
+  id            String   @id @default(uuid()) @db.Uuid
+  storeId       String   @unique @db.Uuid
+  accountName   String
+  accountNumber String
+  ifsc          String
+  bankName      String?
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
+  @@map("store_bank_details")
+}
+
+model Item {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  name         String
+  unitType     UnitType
+  cooliePerBag Decimal  @default(0) @db.Decimal(10, 2)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+
+  org       Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  lines     BillLine[]
+  movements InventoryMovement[]
+
+  @@unique([orgId, name])
+  @@map("items")
+}
+
+model Worker {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  salaries WorkerSalary[]
+
+  @@unique([orgId, name])
+  @@map("workers")
+}
+
+model PaymentMode {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  isDigital Boolean
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  payments Payment[]
+  expenses Expense[]
+  salaries WorkerSalary[]
+
+  @@unique([orgId, name])
+  @@map("payment_modes")
+}
+
+// ------------------------------- Billing -----------------------------------
+
+model BillSequence {
+  orgId      String   @db.Uuid
+  billType   BillType
+  nextNumber Int      @default(1)
+
+  @@id([orgId, billType])
+  @@map("bill_sequences")
+}
+
+model Bill {
+  id                String     @id @default(uuid()) @db.Uuid
+  orgId             String     @db.Uuid
+  type              BillType
+  status            BillStatus @default(DRAFT)
+  source            BillSource @default(MANUAL)
+  /// Assigned when the bill is posted. Unique per (org, type).
+  billNumber        Int?
+  billDate          DateTime   @db.Date
+  dueDate           DateTime?  @db.Date
+  storeId           String     @db.Uuid
+  /// Snapshot of the store's ledger balance immediately before this bill posted.
+  previousBalance   Decimal    @default(0) @db.Decimal(14, 2)
+  todayBill         Decimal    @default(0) @db.Decimal(14, 2)
+  coolieTotal       Decimal    @default(0) @db.Decimal(14, 2)
+  total             Decimal    @default(0) @db.Decimal(14, 2)
+  lessAmount        Decimal    @default(0) @db.Decimal(14, 2)
+  lessReason        String?
+  bonusAmount       Decimal    @default(0) @db.Decimal(14, 2)
+  bonusReason       String?
+  commissionPercent Decimal    @default(0) @db.Decimal(5, 2)
+  commissionAmount  Decimal    @default(0) @db.Decimal(14, 2)
+  amountSettled     Decimal    @default(0) @db.Decimal(14, 2)
+  totalBalance      Decimal    @default(0) @db.Decimal(14, 2)
+  notes             String?
+  version           Int        @default(1)
+  createdById       String     @db.Uuid
+  lastEditedById    String     @db.Uuid
+  postedAt          DateTime?  @db.Timestamptz(6)
+  postedById        String?    @db.Uuid
+  cancelledAt       DateTime?  @db.Timestamptz(6)
+  cancelledById     String?    @db.Uuid
+  cancelReason      String?
+  createdAt         DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @db.Timestamptz(6)
+
+  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  store            Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  createdBy        User              @relation("BillCreatedBy", fields: [createdById], references: [id])
+  lastEditedBy     User              @relation("BillEditedBy", fields: [lastEditedById], references: [id])
+  lines            BillLine[]
+  payments         Payment[]
+  adjustments      BillAdjustment[]
+  ledgerEntries    LedgerEntry[]
+  discountRequests DiscountRequest[]
+
+  @@unique([orgId, type, billNumber])
+  @@index([orgId, type, billDate])
+  @@index([orgId, storeId])
+  @@map("bills")
+}
+
+model BillLine {
+  id          String    @id @default(uuid()) @db.Uuid
+  orgId       String    @db.Uuid
+  billId      String    @db.Uuid
+  lineNo      Int
+  itemId      String    @db.Uuid
+  entryMode   EntryMode
+  /// Grade / quality mark for this line. NOT the store mark.
+  lineMark    String?
+  bagCount    Int
+  /// kg for KG items, count for BAG / BOX items.
+  quantity    Decimal   @db.Decimal(12, 3)
+  rate        Decimal   @db.Decimal(12, 2)
+  amount      Decimal   @db.Decimal(14, 2)
+  /// Snapshot of item coolie rate (sales only; always 0 on purchase lines).
+  coolieRate  Decimal   @default(0) @db.Decimal(10, 2)
+  coolieAmount Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  bill          Bill               @relation(fields: [billId], references: [id], onDelete: Restrict)
+  item          Item               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  weights       BagWeight[]
+  /// Present when this is a sales line linked to a purchase source.
+  sourceLink    PurchaseSaleLink?  @relation("SalesLineLink")
+  /// Present when this is a purchase line that sales lines draw from.
+  soldLinks     PurchaseSaleLink[] @relation("PurchaseLineLinks")
+  movements     InventoryMovement[]
+
+  @@unique([billId, lineNo])
+  @@index([orgId, itemId])
+  @@map("bill_lines")
+}
+
+model BagWeight {
+  id         String  @id @default(uuid()) @db.Uuid
+  billLineId String  @db.Uuid
+  seq        Int
+  weightKg   Decimal @db.Decimal(10, 3)
+
+  line BillLine @relation(fields: [billLineId], references: [id], onDelete: Restrict)
+
+  @@unique([billLineId, seq])
+  @@map("bag_weights")
+}
+
+model PurchaseSaleLink {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  salesLineId    String   @unique @db.Uuid
+  purchaseLineId String   @db.Uuid
+  quantity       Decimal  @db.Decimal(12, 3)
+  /// True when the sale exceeded available source quantity and an owner approved it.
+  oversold       Boolean  @default(false)
+  approvedById   String?  @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  salesLine    BillLine @relation("SalesLineLink", fields: [salesLineId], references: [id], onDelete: Restrict)
+  purchaseLine BillLine @relation("PurchaseLineLinks", fields: [purchaseLineId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseLineId])
+  @@map("purchase_sale_links")
+}
+
+model Payment {
+  id             String           @id @default(uuid()) @db.Uuid
+  orgId          String           @db.Uuid
+  storeId        String           @db.Uuid
+  billId         String?          @db.Uuid
+  direction      PaymentDirection
+  paymentModeId  String           @db.Uuid
+  amount         Decimal          @db.Decimal(14, 2)
+  paymentDate    DateTime         @db.Date
+  reference      String?
+  notes          String?
+  status         RecordStatus     @default(ACTIVE)
+  idempotencyKey String
+  createdById    String           @db.Uuid
+  cancelledById  String?          @db.Uuid
+  cancelledAt    DateTime?        @db.Timestamptz(6)
+  cancelReason   String?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+
+  store       Store         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  bill        Bill?         @relation(fields: [billId], references: [id], onDelete: Restrict)
+  paymentMode PaymentMode   @relation(fields: [paymentModeId], references: [id], onDelete: Restrict)
+  createdBy   User          @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  ledger      LedgerEntry[]
+
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId, storeId, paymentDate])
+  @@map("payments")
+}
+
+model BillAdjustment {
+  id           String         @id @default(uuid()) @db.Uuid
+  orgId        String         @db.Uuid
+  billId       String?        @db.Uuid
+  storeId      String         @db.Uuid
+  type         AdjustmentType
+  /// Signed effect on the party balance (same convention as LedgerEntry.amount).
+  amount       Decimal        @db.Decimal(14, 2)
+  reason       String
+  createdById  String         @db.Uuid
+  createdAt    DateTime       @default(now()) @db.Timestamptz(6)
+
+  bill   Bill?         @relation(fields: [billId], references: [id], onDelete: Restrict)
+  store  Store         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  ledger LedgerEntry[]
+
+  @@index([orgId, storeId])
+  @@map("bill_adjustments")
+}
+
+// ------------------------------- Ledger ------------------------------------
+
+model LedgerEntry {
+  id              String          @id @default(uuid()) @db.Uuid
+  /// Strictly increasing insertion order for deterministic running balances.
+  seq             BigInt          @default(autoincrement())
+  orgId           String          @db.Uuid
+  storeId         String          @db.Uuid
+  entryDate       DateTime        @db.Date
+  entryType       LedgerEntryType
+  amount          Decimal         @db.Decimal(14, 2)
+  billId          String?         @db.Uuid
+  paymentId       String?         @db.Uuid
+  adjustmentId    String?         @db.Uuid
+  reversesEntryId String?         @unique @db.Uuid
+  description     String
+  createdById     String          @db.Uuid
+  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+
+  store      Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  bill       Bill?           @relation(fields: [billId], references: [id], onDelete: Restrict)
+  payment    Payment?        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  adjustment BillAdjustment? @relation(fields: [adjustmentId], references: [id], onDelete: Restrict)
+  reverses   LedgerEntry?    @relation("Reversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy LedgerEntry?    @relation("Reversal")
+
+  @@index([orgId, storeId, seq])
+  @@index([orgId, entryDate])
+  @@index([billId])
+  @@map("ledger_entries")
+}
+
+model InventoryMovement {
+  id                 String       @id @default(uuid()) @db.Uuid
+  orgId              String       @db.Uuid
+  itemId             String       @db.Uuid
+  movementDate       DateTime     @db.Date
+  type               MovementType
+  /// +IN / -OUT, in the item's unit (kg or count).
+  quantity           Decimal      @db.Decimal(12, 3)
+  bagCount           Int          @default(0)
+  billLineId         String?      @db.Uuid
+  reversesMovementId String?      @unique @db.Uuid
+  note               String?
+  createdById        String       @db.Uuid
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+
+  item     Item               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  billLine BillLine?          @relation(fields: [billLineId], references: [id], onDelete: Restrict)
+  reverses InventoryMovement? @relation("MovementReversal", fields: [reversesMovementId], references: [id], onDelete: Restrict)
+  reversedBy InventoryMovement? @relation("MovementReversal")
+
+  @@index([orgId, itemId, movementDate])
+  @@map("inventory_movements")
+}
+
+// --------------------------- Expenses & salaries ---------------------------
+
+model Expense {
+  id             String          @id @default(uuid()) @db.Uuid
+  orgId          String          @db.Uuid
+  expenseDate    DateTime        @db.Date
+  category       ExpenseCategory
+  amount         Decimal         @db.Decimal(14, 2)
+  notes          String?
+  paymentModeId  String?         @db.Uuid
+  status         RecordStatus    @default(ACTIVE)
+  idempotencyKey String
+  createdById    String          @db.Uuid
+  cancelledById  String?         @db.Uuid
+  cancelledAt    DateTime?       @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+
+  paymentMode PaymentMode? @relation(fields: [paymentModeId], references: [id])
+
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId, expenseDate])
+  @@map("expenses")
+}
+
+model WorkerSalary {
+  id             String       @id @default(uuid()) @db.Uuid
+  orgId          String       @db.Uuid
+  workerId       String       @db.Uuid
+  paymentDate    DateTime     @db.Date
+  periodFrom     DateTime?    @db.Date
+  periodTo       DateTime?    @db.Date
+  amount         Decimal      @db.Decimal(14, 2)
+  paymentModeId  String?      @db.Uuid
+  notes          String?
+  status         RecordStatus @default(ACTIVE)
+  idempotencyKey String
+  createdById    String       @db.Uuid
+  cancelledById  String?      @db.Uuid
+  cancelledAt    DateTime?    @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+
+  worker      Worker       @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  paymentMode PaymentMode? @relation(fields: [paymentModeId], references: [id])
+
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId, paymentDate])
+  @@map("worker_salaries")
+}
+
+model FinancialYear {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @db.Uuid
+  label           String
+  startDate       DateTime  @db.Date
+  endDate         DateTime  @db.Date
+  isClosed        Boolean   @default(false)
+  closedAt        DateTime? @db.Timestamptz(6)
+  closedById      String?   @db.Uuid
+  /// Closing balances per store at year end. Reporting snapshot only: balances
+  /// continue in the ledger, so no duplicate opening entries are ever created.
+  closingSnapshot Json?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@unique([orgId, label])
+  @@map("financial_years")
+}
+
+// ------------------------- Audit, sync, idempotency ------------------------
+
+model AuditLog {
+  /// BIGSERIAL: also the monotonic cursor for offline pull-sync.
+  id         BigInt   @id @default(autoincrement())
+  orgId      String?  @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  oldData    Json?
+  newData    Json?
+  source     String   @default("APP")
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([orgId, id])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model SyncMutation {
+  /// Client-generated UUID — the idempotency key for the mutation.
+  id           String     @id @db.Uuid
+  orgId        String     @db.Uuid
+  userId       String     @db.Uuid
+  deviceId     String
+  type         String
+  payload      Json
+  status       SyncStatus
+  result       Json?
+  conflictData Json?
+  resolution   String?
+  resolvedById String?    @db.Uuid
+  resolvedAt   DateTime?  @db.Timestamptz(6)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+
+  @@index([orgId, status])
+  @@map("sync_mutations")
+}
+
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  scope          String
+  key            String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([orgId, scope, key])
+  @@map("idempotency_records")
+}
+
+model OcrUpload {
+  id           String    @id @default(uuid()) @db.Uuid
+  orgId        String    @db.Uuid
+  uploadedById String    @db.Uuid
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  /// Original file. Purged after retainUntil (metadata is kept).
+  fileData     Bytes?
+  status       OcrStatus @default(UPLOADED)
+  rawText      String?
+  candidates   Json?
+  error        String?
+  billId       String?   @db.Uuid
+  retainUntil  DateTime  @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([orgId, createdAt])
+  @@map("ocr_uploads")
+}
+
+// -------------------------- Invoice discounting ----------------------------
+
+model DiscountRequest {
+  id                  String            @id @default(uuid()) @db.Uuid
+  orgId               String            @db.Uuid
+  billId              String            @db.Uuid
+  status              DiscountStatus    @default(LISTED)
+  invoiceAmount       Decimal           @db.Decimal(14, 2)
+  tenureDays          Int
+  annualRatePercent   Decimal           @db.Decimal(5, 2)
+  discountFee         Decimal           @db.Decimal(14, 2)
+  reserveHoldback     Decimal           @db.Decimal(14, 2)
+  upfrontPayout       Decimal           @db.Decimal(14, 2)
+  trustScoreAtRequest Int
+  dueDate             DateTime          @db.Date
+  acceptedTermsAt     DateTime          @db.Timestamptz(6)
+  acceptedById        String            @db.Uuid
+  financierOrgId      String?           @db.Uuid
+  acceptedBidId       String?           @db.Uuid
+  fundedAmount        Decimal?          @db.Decimal(14, 2)
+  fundedAt            DateTime?         @db.Timestamptz(6)
+  fundingReference    String?
+  settlementRouting   SettlementRouting @default(TO_FINANCIER)
+  settledAt           DateTime?         @db.Timestamptz(6)
+  version             Int               @default(1)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @db.Timestamptz(6)
+
+  bill        Bill                  @relation(fields: [billId], references: [id], onDelete: Restrict)
+  bids        DiscountBid[]
+  settlements FinancingSettlement[]
+  default     DefaultEvent?
+
+  @@index([orgId, status])
+  @@map("discount_requests")
+}
+
+/// A bid placed by a real authenticated INVESTOR user. The system never fabricates bids.
+model DiscountBid {
+  id                String    @id @default(uuid()) @db.Uuid
+  discountRequestId String    @db.Uuid
+  financierOrgId    String    @db.Uuid
+  bidderUserId      String    @db.Uuid
+  annualRatePercent Decimal   @db.Decimal(5, 2)
+  advanceAmount     Decimal   @db.Decimal(14, 2)
+  status            BidStatus @default(OPEN)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+
+  request DiscountRequest @relation(fields: [discountRequestId], references: [id], onDelete: Restrict)
+  bidder  User            @relation(fields: [bidderUserId], references: [id], onDelete: Restrict)
+
+  @@unique([discountRequestId, financierOrgId])
+  @@map("discount_bids")
+}
+
+model FinancingSettlement {
+  id                String            @id @default(uuid()) @db.Uuid
+  discountRequestId String            @db.Uuid
+  amount            Decimal           @db.Decimal(14, 2)
+  routing           SettlementRouting
+  settledOn         DateTime          @db.Date
+  reserveReleased   Decimal           @default(0) @db.Decimal(14, 2)
+  reference         String?
+  recordedById      String            @db.Uuid
+  createdAt         DateTime          @default(now()) @db.Timestamptz(6)
+
+  request DiscountRequest @relation(fields: [discountRequestId], references: [id], onDelete: Restrict)
+
+  @@map("financing_settlements")
+}
+
+model DefaultEvent {
+  id                String    @id @default(uuid()) @db.Uuid
+  orgId             String    @db.Uuid
+  discountRequestId String    @unique @db.Uuid
+  detectedAt        DateTime  @default(now()) @db.Timestamptz(6)
+  daysOverdue       Int
+  resolvedAt        DateTime? @db.Timestamptz(6)
+
+  request    DiscountRequest       @relation(fields: [discountRequestId], references: [id], onDelete: Restrict)
+  adjustment TrustScoreAdjustment?
+
+  @@index([orgId])
+  @@map("default_events")
+}
+
+// ---------------------------- Trust & credit -------------------------------
+
+model TrustScoreAdjustment {
+  id             String        @id @default(uuid()) @db.Uuid
+  orgId          String        @db.Uuid
+  points         Int
+  reason         String
+  /// UNIQUE: one default event can only ever produce one penalty.
+  defaultEventId String?       @unique @db.Uuid
+  createdById    String?       @db.Uuid
+  revokedAt      DateTime?     @db.Timestamptz(6)
+  revokedById    String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+
+  defaultEvent DefaultEvent? @relation(fields: [defaultEventId], references: [id], onDelete: Restrict)
+
+  @@index([orgId])
+  @@map("trust_score_adjustments")
+}
+
+model TrustScoreSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  score           Int
+  baseScore       Int
+  adjustmentTotal Int
+  formulaVersion  String
+  inputs          Json
+  factors         Json
+  explanations    Json
+  computedAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([orgId, computedAt])
+  @@map("trust_score_snapshots")
+}
+
+model CreditProfileSnapshot {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @db.Uuid
+  metrics    Json
+  trustScore Int
+  riskFlag   RiskFlag
+  computedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  offers LoanOffer[]
+
+  @@index([orgId, computedAt])
+  @@map("credit_profile_snapshots")
+}
+
+model LendingPartner {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique
+  /// True for fictional demo partners created by the dev seed. Shown with a DEMO badge.
+  isDemo       Boolean  @default(false)
+  contactEmail String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  products      LoanProduct[]
+  organizations Organization[]
+
+  @@map("lending_partners")
+}
+
+model LoanProduct {
+  id                     String   @id @default(uuid()) @db.Uuid
+  lendingPartnerId       String   @db.Uuid
+  name                   String
+  minTrustScore          Int
+  maxInterestRatePercent Decimal  @db.Decimal(5, 2)
+  maxLoanAmount          Decimal  @db.Decimal(14, 2)
+  minAnnualTurnover      Decimal  @default(0) @db.Decimal(14, 2)
+  minMonthsHistory       Int      @default(0)
+  excludeHighRisk        Boolean  @default(true)
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+
+  partner LendingPartner @relation(fields: [lendingPartnerId], references: [id], onDelete: Restrict)
+  offers  LoanOffer[]
+
+  @@unique([lendingPartnerId, name])
+  @@map("loan_products")
+}
+
+model LoanOffer {
+  id                      String          @id @default(uuid()) @db.Uuid
+  orgId                   String          @db.Uuid
+  loanProductId           String          @db.Uuid
+  creditProfileSnapshotId String          @db.Uuid
+  indicativeAmount        Decimal         @db.Decimal(14, 2)
+  indicativeRatePercent   Decimal         @db.Decimal(5, 2)
+  status                  LoanOfferStatus @default(INDICATIVE)
+  lenderNote              String?
+  createdAt               DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime        @updatedAt @db.Timestamptz(6)
+
+  product  LoanProduct           @relation(fields: [loanProductId], references: [id], onDelete: Restrict)
+  snapshot CreditProfileSnapshot @relation(fields: [creditProfileSnapshotId], references: [id], onDelete: Restrict)
+
+  @@unique([orgId, loanProductId, creditProfileSnapshotId])
+  @@map("loan_offers")
+}

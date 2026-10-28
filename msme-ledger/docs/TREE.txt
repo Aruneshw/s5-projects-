@@ -1,0 +1,389 @@
+├── docs/
+│   └── FINANCIAL_RULES.md
+├── prisma/
+│   ├── migrations/
+│   │   ├── 20261015090000_init/
+│   │   │   └── migration.sql
+│   │   ├── 20261015090100_integrity_rules/
+│   │   │   └── migration.sql
+│   │   └── migration_lock.toml
+│   ├── schema.prisma
+│   └── seed.ts
+├── public/
+│   ├── icons/
+│   │   ├── icon-192.png
+│   │   ├── icon-512.png
+│   │   └── icon-maskable-512.png
+│   └── sw.js
+├── scripts/
+│   ├── backup.ps1
+│   ├── backup.sh
+│   ├── reset-password.ts
+│   ├── restore.ps1
+│   ├── restore.sh
+│   └── run-daily-jobs.ts
+├── src/
+│   ├── app/
+│   │   ├── (app)/
+│   │   │   ├── audit/
+│   │   │   │   └── page.tsx
+│   │   │   ├── bills/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── new/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── credit/
+│   │   │   │   └── page.tsx
+│   │   │   ├── dashboard/
+│   │   │   │   └── page.tsx
+│   │   │   ├── discounting/
+│   │   │   │   └── page.tsx
+│   │   │   ├── expenses/
+│   │   │   │   └── page.tsx
+│   │   │   ├── inventory/
+│   │   │   │   └── page.tsx
+│   │   │   ├── investments/
+│   │   │   │   └── page.tsx
+│   │   │   ├── items/
+│   │   │   │   └── page.tsx
+│   │   │   ├── ledger/
+│   │   │   │   ├── daily/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── lender/
+│   │   │   │   └── page.tsx
+│   │   │   ├── marketplace/
+│   │   │   │   └── page.tsx
+│   │   │   ├── ocr/
+│   │   │   │   └── page.tsx
+│   │   │   ├── payments/
+│   │   │   │   └── page.tsx
+│   │   │   ├── reports/
+│   │   │   │   └── page.tsx
+│   │   │   ├── settings/
+│   │   │   │   └── page.tsx
+│   │   │   ├── stores/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── sync/
+│   │   │   │   └── page.tsx
+│   │   │   ├── team/
+│   │   │   │   └── page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── (auth)/
+│   │   │   ├── forgot-password/
+│   │   │   │   └── page.tsx
+│   │   │   ├── login/
+│   │   │   │   └── page.tsx
+│   │   │   ├── reset-password/
+│   │   │   │   └── page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── api/
+│   │   │   ├── audit/
+│   │   │   │   └── route.ts
+│   │   │   ├── auth/
+│   │   │   │   ├── [...nextauth]/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── change-password/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── logout-everywhere/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── recover/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── reset/
+│   │   │   │       └── route.ts
+│   │   │   ├── backup/
+│   │   │   │   └── export/
+│   │   │   │       └── route.ts
+│   │   │   ├── bills/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── adjustments/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── cancel/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── pdf/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── post/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── linkable/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── preview/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── credit/
+│   │   │   │   ├── offers/
+│   │   │   │   │   ├── [id]/
+│   │   │   │   │   │   └── interest/
+│   │   │   │   │   │       └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── profile/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── sharing/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── trust/
+│   │   │   │       └── route.ts
+│   │   │   ├── dashboard/
+│   │   │   │   └── route.ts
+│   │   │   ├── discounting/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── bids/
+│   │   │   │   │   │   └── [bidId]/
+│   │   │   │   │   │       └── accept/
+│   │   │   │   │   │           └── route.ts
+│   │   │   │   │   ├── settlements/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── withdraw/
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── evaluate/
+│   │   │   │   │   └── [billId]/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── expenses/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── cancel/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── exports/
+│   │   │   │   └── [kind]/
+│   │   │   │       └── route.ts
+│   │   │   ├── financial-years/
+│   │   │   │   ├── [label]/
+│   │   │   │   │   └── close/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── health/
+│   │   │   │   └── route.ts
+│   │   │   ├── inventory/
+│   │   │   │   ├── adjustments/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── items/
+│   │   │   │   │   └── [itemId]/
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── reconciliation/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── investments/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── fund/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── items/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── jobs/
+│   │   │   │   └── daily/
+│   │   │   │       └── route.ts
+│   │   │   ├── ledger/
+│   │   │   │   ├── balances/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── daily/
+│   │   │   │       └── route.ts
+│   │   │   ├── lender/
+│   │   │   │   ├── offers/
+│   │   │   │   │   └── [id]/
+│   │   │   │   │       └── decline/
+│   │   │   │   │           └── route.ts
+│   │   │   │   └── profiles/
+│   │   │   │       └── route.ts
+│   │   │   ├── marketplace/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── bids/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── me/
+│   │   │   │   └── route.ts
+│   │   │   ├── ocr/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── confirm/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── payment-modes/
+│   │   │   │   └── route.ts
+│   │   │   ├── payments/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── cancel/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── reports/
+│   │   │   │   └── [kind]/
+│   │   │   │       └── route.ts
+│   │   │   ├── salaries/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── cancel/
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── settings/
+│   │   │   │   └── route.ts
+│   │   │   ├── stores/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── adjustments/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── balance/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── bank/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── ledger/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── sync/
+│   │   │   │   ├── conflicts/
+│   │   │   │   │   ├── [id]/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── pull/
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── push/
+│   │   │   │       └── route.ts
+│   │   │   ├── team/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── reset-link/
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   └── workers/
+│   │   │       └── route.ts
+│   │   ├── offline/
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── manifest.ts
+│   │   ├── page.tsx
+│   │   └── providers.tsx
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── can.tsx
+│   │   │   └── me.tsx
+│   │   ├── common/
+│   │   │   └── format.tsx
+│   │   ├── layout/
+│   │   │   ├── app-shell.tsx
+│   │   │   └── nav.ts
+│   │   └── ui/
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── dialog.tsx
+│   │       ├── input.tsx
+│   │       ├── states.tsx
+│   │       └── tabs.tsx
+│   ├── features/
+│   │   ├── bills/
+│   │   │   ├── components/
+│   │   │   │   ├── bill-form.tsx
+│   │   │   │   ├── line-editor.tsx
+│   │   │   │   ├── picker.tsx
+│   │   │   │   └── use-masters.ts
+│   │   │   ├── calc.ts
+│   │   │   └── form.ts
+│   │   ├── credit/
+│   │   │   └── trust-score.ts
+│   │   ├── discounting/
+│   │   │   ├── components/
+│   │   │   │   └── instant-cash-dialog.tsx
+│   │   │   └── pricing.ts
+│   │   ├── expenses/
+│   │   ├── inventory/
+│   │   ├── items/
+│   │   ├── ledger/
+│   │   │   └── fifo.ts
+│   │   ├── ocr/
+│   │   │   └── parse.ts
+│   │   ├── payments/
+│   │   ├── reports/
+│   │   ├── stores/
+│   │   ├── sync/
+│   │   └── team/
+│   ├── lib/
+│   │   ├── auth/
+│   │   ├── validation/
+│   │   │   ├── common.ts
+│   │   │   ├── schemas.ts
+│   │   │   └── settings.ts
+│   │   ├── api.ts
+│   │   ├── dates.ts
+│   │   ├── hooks.ts
+│   │   ├── money.ts
+│   │   └── utils.ts
+│   ├── offline/
+│   │   ├── db.ts
+│   │   ├── sync-engine.ts
+│   │   └── use-sync.ts
+│   ├── server/
+│   │   ├── audit/
+│   │   │   └── audit.ts
+│   │   ├── auth/
+│   │   │   ├── options.ts
+│   │   │   ├── password.ts
+│   │   │   └── session.ts
+│   │   ├── authorization/
+│   │   │   └── permissions.ts
+│   │   ├── jobs/
+│   │   │   ├── backup.ts
+│   │   │   └── daily.ts
+│   │   ├── pdf/
+│   │   │   └── documents.tsx
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   │   ├── admin.ts
+│   │   │   ├── bills.ts
+│   │   │   ├── credit.ts
+│   │   │   ├── discounting.ts
+│   │   │   ├── expenses.ts
+│   │   │   ├── exports.ts
+│   │   │   ├── inventory.ts
+│   │   │   ├── items.ts
+│   │   │   ├── ledger.ts
+│   │   │   ├── lender-gateway.ts
+│   │   │   ├── ocr.ts
+│   │   │   ├── payments.ts
+│   │   │   ├── receivables.ts
+│   │   │   ├── reports.ts
+│   │   │   ├── stores.ts
+│   │   │   ├── sync.ts
+│   │   │   └── team.ts
+│   │   ├── db.ts
+│   │   ├── errors.ts
+│   │   ├── http.ts
+│   │   ├── rate-limit.ts
+│   │   └── tx.ts
+│   ├── types/
+│   │   └── next-auth.d.ts
+│   └── proxy.ts
+├── tests/
+│   ├── e2e/
+│   │   └── critical.spec.ts
+│   ├── integration/
+│   │   ├── billing.test.ts
+│   │   ├── discounting.test.ts
+│   │   ├── exports-backup.test.ts
+│   │   ├── helpers.ts
+│   │   ├── payments-sync.test.ts
+│   │   ├── security-routes.test.ts
+│   │   └── traceability.test.ts
+│   ├── support/
+│   │   ├── empty.ts
+│   │   └── setup.ts
+│   └── unit/
+│       ├── bill-form.test.ts
+│       ├── calc.test.ts
+│       ├── offline-sync.test.ts
+│       └── pricing-trust.test.ts
+├── .env.example
+├── .gitignore
+├── .prettierignore
+├── .prettierrc.json
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── playwright.config.ts
+├── postcss.config.mjs
+├── prisma.config.ts
+├── tsconfig.json
+└── vitest.config.mts

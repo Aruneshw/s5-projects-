@@ -1,0 +1,42 @@
+/* src/app/globals.css — Tailwind CSS 4 + design tokens.
+   Design intent: a "market ledger" — paper-like background, deep leaf-green ink for actions,
+   turmeric amber for warnings, chilli red for danger. High contrast for outdoor use,
+   big touch targets (min 44px), tabular numerals so rupee columns line up. */
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f7f5ef;
+  --color-card: #ffffff;
+  --color-ink: #1b2a22;
+  --color-muted: #5b6b62;
+  --color-line: #dcd8cc;
+  --color-leaf-50: #ecf7ef;
+  --color-leaf-100: #d3eedb;
+  --color-leaf-600: #1f7a45;
+  --color-leaf-700: #16633a;
+  --color-leaf-800: #104d2d;
+  --color-turmeric-100: #fdf1cf;
+  --color-turmeric-600: #b7791f;
+  --color-turmeric-700: #8a5a12;
+  --color-chilli-100: #fde3e1;
+  --color-chilli-600: #c2352b;
+  --color-chilli-700: #9b2920;
+  --color-sky-600: #1d5f9e;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Tamil", "Noto Sans Malayalam", sans-serif;
+  --radius-card: 14px;
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1;
+  }
+  input, select, textarea, button { font: inherit; }
+  :focus-visible { outline: 3px solid var(--color-leaf-600); outline-offset: 2px; }
+}
+
+@utility num { font-variant-numeric: tabular-nums; }
+@utility safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
