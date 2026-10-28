@@ -14,6 +14,7 @@ a mobile-first, offline-capable web app for a family vegetable wholesale busines
 
 | Read | For |
 |---|---|
+| [CODESPACES.md](CODESPACES.md) | Run it in GitHub Codespaces — no install, only a GitHub account |
 | [docs/SETUP.md](docs/SETUP.md) | Install and run on Windows (PowerShell) / Linux / macOS |
 | [docs/FINANCIAL_RULES.md](docs/FINANCIAL_RULES.md) | Every formula, rounding rule, the design audit and 3 worked examples |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Verified stack versions, structure, data model, roles, sync protocol |

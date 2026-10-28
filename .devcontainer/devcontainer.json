@@ -1,0 +1,18 @@
+// GitHub Codespaces setup for msme-ledger: the app plus its own PostgreSQL database.
+// Open the repo on GitHub → Code → Codespaces → "Create codespace". Everything else is automatic.
+{
+  "name": "MSME Ledger",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/msme-ledger",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "MSME Ledger", "onAutoForward": "openBrowser" }
+  },
+  "postCreateCommand": "npm ci",
+  "postStartCommand": "bash scripts/codespace/start.sh",
+  "postAttachCommand": "bash scripts/codespace/attach.sh",
+  "customizations": {
+    "codespaces": { "openFiles": ["CODESPACES.md"] }
+  }
+}

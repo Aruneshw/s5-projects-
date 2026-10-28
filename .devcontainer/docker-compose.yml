@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    depends_on:
+      - db
+
+  # Reachable only from the app container (no port is published), so the fixed password is local-only.
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: msme
+      POSTGRES_PASSWORD: msme
+      POSTGRES_DB: msme_ledger
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
